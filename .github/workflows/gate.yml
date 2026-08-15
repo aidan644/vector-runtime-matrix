@@ -20,22 +20,97 @@ jobs:
       PYTHONHASHSEED: "0"
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12"
 
-      - name: Run deterministic gate
+      - name: Run deterministic base gate
         run: python -B runner/run_matrix.py matrix/base.json --out out/base
 
-      - name: Upload public-safe summaries
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: Upload public-safe base summaries
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: runtime-matrix-base
           path: out/base
+          if-no-files-found: error
+          retention-days: 7
+
+  r1-candidate:
+    needs: public-safe-gate
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        fft_size: [256, 512, 1024, 2048]
+        hop_ratio: [0.25, 0.50, 0.75]
+        window: [hann, rectangular]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Run R1 candidate
+        run: >-
+          python -B runner/run_r1.py matrix/r1.json
+          --fft-size ${{ matrix.fft_size }}
+          --hop-ratio ${{ matrix.hop_ratio }}
+          --window ${{ matrix.window }}
+          --out out/r1/${{ matrix.fft_size }}-${{ matrix.hop_ratio }}-${{ matrix.window }}
+
+      - name: Upload R1 candidate summary
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: r1-${{ matrix.fft_size }}-${{ matrix.hop_ratio }}-${{ matrix.window }}
+          path: out/r1/${{ matrix.fft_size }}-${{ matrix.hop_ratio }}-${{ matrix.window }}
+          if-no-files-found: error
+          retention-days: 7
+
+  r1-leaderboard:
+    needs: r1-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Download R1 candidate summaries
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53
+        with:
+          pattern: r1-*
+          path: r1-results
+          merge-multiple: false
+
+      - name: Build R1 leaderboard
+        run: python -B runner/aggregate_r1.py r1-results --out out/r1-aggregate
+
+      - name: Upload R1 leaderboard
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: runtime-matrix-r1-aggregate
+          path: out/r1-aggregate
           if-no-files-found: error
           retention-days: 7
