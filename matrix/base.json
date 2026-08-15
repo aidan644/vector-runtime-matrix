@@ -1,0 +1,22 @@
+{
+  "schema": "portable-runtime-matrix.v1",
+  "sample_rate_hz": 48000,
+  "fft_sizes": [
+    256,
+    512
+  ],
+  "windows": [
+    "hann",
+    "rectangular"
+  ],
+  "frequencies_hz": [
+    220.0,
+    440.0
+  ],
+  "smoothing_alpha": [
+    0.0,
+    0.5,
+    0.9
+  ],
+  "noise_seed": 12345
+}
